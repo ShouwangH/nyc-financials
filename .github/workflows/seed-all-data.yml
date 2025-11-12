@@ -1,0 +1,197 @@
+name: Seed All Data
+
+on:
+  # Run weekly on Sundays at midnight UTC
+  schedule:
+    - cron: '0 0 * * 0'
+
+  # Allow manual triggering for testing
+  workflow_dispatch:
+    inputs:
+      run_housing:
+        description: 'Run housing seed script'
+        required: false
+        default: 'true'
+        type: boolean
+      run_capital:
+        description: 'Run capital budget seed script'
+        required: false
+        default: 'true'
+        type: boolean
+      run_financial:
+        description: 'Run financial seed script'
+        required: false
+        default: 'true'
+        type: boolean
+
+# Prevent concurrent runs
+concurrency:
+  group: seed-all-data
+  cancel-in-progress: false
+
+jobs:
+  seed-data:
+    name: Seed NYC Open Data
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NODE_ENV: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run seed scripts with retry logic
+        id: seed
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              # Manual trigger - run individual scripts based on inputs
+              FAILED_SCRIPTS=()
+
+              if [ "${{ inputs.run_housing }}" = "true" ]; then
+                echo "▶️  Running housing seed script..."
+                if ! npm run seed:housing; then
+                  FAILED_SCRIPTS+=("seed:housing")
+                fi
+              fi
+
+              if [ "${{ inputs.run_capital }}" = "true" ]; then
+                echo "▶️  Running capital budget seed script..."
+                if ! npm run seed:capital; then
+                  FAILED_SCRIPTS+=("seed:capital")
+                fi
+              fi
+
+              if [ "${{ inputs.run_financial }}" = "true" ]; then
+                echo "▶️  Running financial seed script..."
+                if ! npm run seed:financial; then
+                  FAILED_SCRIPTS+=("seed:financial")
+                fi
+              fi
+
+              if [ ${#FAILED_SCRIPTS[@]} -ne 0 ]; then
+                echo "❌ Failed scripts: ${FAILED_SCRIPTS[*]}"
+                exit 1
+              fi
+            else
+              # Scheduled run - run all scripts
+              npm run seed:all
+            fi
+          on_retry_command: |
+            echo "⚠️  Retry attempt ${{ steps.seed.outputs.attempts }} of 3"
+            echo "Waiting before retry..."
+
+      - name: Generate seed summary
+        if: success()
+        run: |
+          echo "## ✅ Data Seeding Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Scripts Executed:" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            [ "${{ inputs.run_housing }}" = "true" ] && echo "- ✅ Housing data seeded" >> $GITHUB_STEP_SUMMARY
+            [ "${{ inputs.run_capital }}" = "true" ] && echo "- ✅ Capital budget data seeded" >> $GITHUB_STEP_SUMMARY
+            [ "${{ inputs.run_financial }}" = "true" ] && echo "- ✅ Financial data seeded (sankeys, sunbursts)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ✅ Housing data seeded" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Capital budget data seeded" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Financial data seeded (sankeys, sunbursts)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+
+      - name: Send Discord notification on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          # Prepare failure notification
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          # Determine which script failed (if identifiable from logs)
+          FAILED_SCRIPT="Unknown - check logs"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TRIGGER="Manual (workflow_dispatch)"
+          else
+            TRIGGER="Scheduled (cron)"
+          fi
+
+          # Create Discord embed payload
+          DISCORD_PAYLOAD=$(cat <<EOF
+          {
+            "embeds": [{
+              "title": "❌ Data Seeding Failed",
+              "description": "All retry attempts (3) have been exhausted.",
+              "color": 15158332,
+              "fields": [
+                {
+                  "name": "📅 Timestamp",
+                  "value": "${TIMESTAMP}",
+                  "inline": true
+                },
+                {
+                  "name": "🔄 Trigger",
+                  "value": "${TRIGGER}",
+                  "inline": true
+                },
+                {
+                  "name": "📝 Repository",
+                  "value": "${{ github.repository }}",
+                  "inline": false
+                },
+                {
+                  "name": "🔗 Workflow Run",
+                  "value": "[View Logs](${WORKFLOW_URL})",
+                  "inline": false
+                },
+                {
+                  "name": "⚠️ Action Required",
+                  "value": "Please check the workflow logs for detailed error messages and investigate the cause of the failure.",
+                  "inline": false
+                }
+              ],
+              "footer": {
+                "text": "NYC Open Data Seeding Workflow"
+              },
+              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+            }]
+          }
+          EOF
+          )
+
+          # Send to Discord
+          curl -H "Content-Type: application/json" \
+               -d "${DISCORD_PAYLOAD}" \
+               "${DISCORD_WEBHOOK_URL}"
+
+          echo "Discord notification sent"
+
+      - name: Upload logs as artifact on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seed-failure-logs-${{ github.run_id }}
+          path: |
+            npm-debug.log*
+            *.log
+          retention-days: 30
+          if-no-files-found: ignore
