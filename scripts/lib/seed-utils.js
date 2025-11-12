@@ -21,8 +21,19 @@ export function initDb() {
 
   console.log('[Seed] Connecting to database...');
 
-  const client = postgres(connectionString, {
+  // Parse connection string to modify if needed
+  let finalConnectionString = connectionString;
+
+  // If using Supabase direct connection, recommend using pooler for CI
+  if (connectionString.includes('supabase.co') && !connectionString.includes('pooler')) {
+    console.warn('[Seed] ⚠️  Using direct connection. For better reliability in CI, consider using connection pooler.');
+    console.warn('[Seed]     Change: db.xxx.supabase.co → aws-0-[region].pooler.supabase.com');
+  }
+
+  const client = postgres(finalConnectionString, {
     max: 1, // Single connection for seeding
+    idle_timeout: 20, // Close idle connections after 20 seconds
+    connect_timeout: 30, // 30 second connection timeout
     onnotice: () => {}, // Suppress notices during bulk inserts
   });
 
