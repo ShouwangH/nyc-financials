@@ -1,0 +1,16 @@
+{
+  "name": "nyc-financials",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "seed:housing": "node .github/workflows/scripts/seed-housing.js",
+    "seed:capital": "node .github/workflows/scripts/seed-capital-budget.js",
+    "seed:financial": "node .github/workflows/scripts/seed-financial.js",
+    "seed:all": "node .github/workflows/scripts/seed-housing.js && node .github/workflows/scripts/seed-capital-budget.js && node .github/workflows/scripts/seed-financial.js"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.29.0",
+    "postgres": "^3.4.0",
+    "dotenv": "^16.3.1"
+  }
+}

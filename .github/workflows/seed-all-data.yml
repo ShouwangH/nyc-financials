@@ -11,17 +11,17 @@ on:
       run_housing:
         description: 'Run housing seed script'
         required: false
-        default: 'true'
+        default: true
         type: boolean
       run_capital:
         description: 'Run capital budget seed script'
         required: false
-        default: 'true'
+        default: true
         type: boolean
       run_financial:
         description: 'Run financial seed script'
         required: false
-        default: 'true'
+        default: true
         type: boolean
 
 # Prevent concurrent runs
