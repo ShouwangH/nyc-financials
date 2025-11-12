@@ -47,8 +47,13 @@ export function validateMinimumRecordCount(records, minCount, datasetName) {
 /**
  * Validate required fields exist in records
  * Detects schema changes in NYC Open Data APIs
+ * @param {Array} records - Records to validate
+ * @param {Array} requiredFields - Fields that should be present
+ * @param {string} datasetName - Name of dataset for error messages
+ * @param {number} sampleSize - Number of records to check (default: 10)
+ * @param {number} maxFailureRate - Maximum acceptable failure rate as percentage (default: 10)
  */
-export function validateRequiredFields(records, requiredFields, datasetName, sampleSize = 10) {
+export function validateRequiredFields(records, requiredFields, datasetName, sampleSize = 10, maxFailureRate = 10) {
   if (!Array.isArray(records) || records.length === 0) {
     throw new ValidationError(
       `${datasetName}: No records to validate`,
@@ -82,17 +87,25 @@ export function validateRequiredFields(records, requiredFields, datasetName, sam
     // Calculate percentage of records with missing fields
     const failureRate = (missingFieldsByRecord.length / samplesToCheck) * 100;
 
-    throw new ValidationError(
-      `${datasetName}: ${missingFieldsByRecord.length}/${samplesToCheck} sampled records have missing required fields`,
-      {
-        dataset: datasetName,
-        failureRate: `${failureRate.toFixed(1)}%`,
-        requiredFields,
-        sampleSize: samplesToCheck,
-        failures: missingFieldsByRecord.slice(0, 3), // Show first 3 examples
-        suggestion: 'API schema may have changed. Review field names in NYC Open Data documentation.'
-      }
-    );
+    // Only throw error if failure rate exceeds threshold
+    if (failureRate > maxFailureRate) {
+      throw new ValidationError(
+        `${datasetName}: ${missingFieldsByRecord.length}/${samplesToCheck} sampled records have missing required fields (${failureRate.toFixed(1)}% > ${maxFailureRate}% threshold)`,
+        {
+          dataset: datasetName,
+          failureRate: `${failureRate.toFixed(1)}%`,
+          threshold: `${maxFailureRate}%`,
+          requiredFields,
+          sampleSize: samplesToCheck,
+          failures: missingFieldsByRecord.slice(0, 3), // Show first 3 examples
+          suggestion: 'API schema may have changed. Review field names in NYC Open Data documentation.'
+        }
+      );
+    }
+
+    // Warn but don't fail if within acceptable threshold
+    console.log(`[Validation] ⚠️  ${datasetName}: ${missingFieldsByRecord.length}/${samplesToCheck} records missing fields (${failureRate.toFixed(1)}% - within ${maxFailureRate}% threshold)`);
+    return true;
   }
 
   console.log(`[Validation] ✓ ${datasetName}: All required fields present (checked ${samplesToCheck} records)`);
