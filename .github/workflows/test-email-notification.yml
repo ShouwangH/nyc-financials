@@ -1,0 +1,38 @@
+name: Test Email Notification
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-email:
+    name: Send Test Email
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - name: Send test email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "✅ Test Email - NYC Data Seeding Workflow"
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: ${{ secrets.SMTP_FROM_EMAIL }}
+          body: |
+            This is a test email from your NYC Data Seeding workflow.
+
+            If you're receiving this, your email notification settings are configured correctly!
+
+            📅 Test Time: ${{ github.event.head_commit.timestamp }}
+            📝 Repository: ${{ github.repository }}
+            🔗 Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            ---
+            You can now safely use these settings for failure notifications.
+
+      - name: Confirm success
+        run: |
+          echo "✅ Test email sent successfully!"
+          echo "Check your inbox at the configured NOTIFICATION_EMAIL address."
