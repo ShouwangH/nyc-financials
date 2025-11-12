@@ -46,7 +46,7 @@ export function initDb() {
  */
 export async function fetchNycOpenData(url, options = {}) {
   const {
-    limit = 50000,
+    limit = 10000, // Reduced from 50000 to avoid timeouts
     totalLimit = Infinity,
     where = null,
     order = null,
@@ -70,36 +70,73 @@ export async function fetchNycOpenData(url, options = {}) {
     const fetchUrl = `${url}?${params.toString()}`;
     console.log(`[Fetch] Offset ${offset}...`);
 
-    try {
-      const response = await fetch(fetchUrl);
+    // Retry logic for this specific batch
+    const maxRetries = 3;
+    let retryCount = 0;
+    let batch = null;
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    while (retryCount < maxRetries) {
+      try {
+        // Use AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
+        const response = await fetch(fetchUrl, {
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json',
+          },
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        batch = await response.json();
+        break; // Success, exit retry loop
+
+      } catch (error) {
+        retryCount++;
+
+        if (error.name === 'AbortError') {
+          console.error(`[Fetch] Request timed out (attempt ${retryCount}/${maxRetries})`);
+        } else if (error.code === 'ECONNRESET' || error.errno === 0) {
+          console.error(`[Fetch] Connection reset (attempt ${retryCount}/${maxRetries}): ${error.message}`);
+        } else {
+          console.error(`[Fetch] Error (attempt ${retryCount}/${maxRetries}):`, error.message);
+        }
+
+        if (retryCount >= maxRetries) {
+          console.error(`[Fetch] Failed after ${maxRetries} attempts at offset ${offset}`);
+          throw error;
+        }
+
+        // Exponential backoff: 2s, 4s, 8s
+        const backoffMs = Math.pow(2, retryCount) * 1000;
+        console.log(`[Fetch] Retrying in ${backoffMs / 1000}s...`);
+        await sleep(backoffMs);
       }
-
-      const batch = await response.json();
-
-      if (batch.length === 0) {
-        hasMore = false;
-        break;
-      }
-
-      allRecords = allRecords.concat(batch);
-      console.log(`[Fetch] Retrieved ${batch.length} records (total: ${allRecords.length})`);
-
-      offset += batch.length;
-
-      // Stop if we got fewer records than the limit (last page)
-      if (batch.length < limit) {
-        hasMore = false;
-      }
-
-      // Respect rate limits
-      await sleep(100);
-    } catch (error) {
-      console.error(`[Fetch] Error fetching batch at offset ${offset}:`, error.message);
-      throw error;
     }
+
+    if (batch === null || batch.length === 0) {
+      hasMore = false;
+      break;
+    }
+
+    allRecords = allRecords.concat(batch);
+    console.log(`[Fetch] Retrieved ${batch.length} records (total: ${allRecords.length})`);
+
+    offset += batch.length;
+
+    // Stop if we got fewer records than the limit (last page)
+    if (batch.length < limit) {
+      hasMore = false;
+    }
+
+    // Respect rate limits - increased delay
+    await sleep(500);
   }
 
   console.log(`[Fetch] Completed: ${allRecords.length} total records\n`);
