@@ -50,9 +50,19 @@ This is your PostgreSQL connection string from Supabase.
 postgresql://[user]:[password]@[host]:[port]/[database]
 ```
 
-**Example:**
+**IMPORTANT: Use Connection Pooler for GitHub Actions**
+
+GitHub Actions may have issues with IPv6 connections. **Always use Supabase's connection pooler** (not direct connection) for reliable GitHub Actions connectivity.
+
+**✅ Correct (Connection Pooler):**
 ```
 postgresql://postgres.abcdefghij:MyP@ssw0rd@aws-0-us-west-1.pooler.supabase.com:5432/postgres
+```
+Note the `.pooler.` in the hostname - this ensures IPv4 connectivity.
+
+**❌ Incorrect (Direct Connection - may fail with IPv6):**
+```
+postgresql://postgres.abcdefghij:MyP@ssw0rd@db.abcdefghij.supabase.co:5432/postgres
 ```
 
 **Where to find your Supabase connection string:**
@@ -60,8 +70,15 @@ postgresql://postgres.abcdefghij:MyP@ssw0rd@aws-0-us-west-1.pooler.supabase.com:
 1. Log in to [Supabase](https://app.supabase.com)
 2. Select your project
 3. Go to **Project Settings** → **Database**
-4. Scroll down to **Connection string** → **URI**
-5. Copy the connection string (replace `[YOUR-PASSWORD]` with your actual database password)
+4. Look for **Connection Pooler** section (NOT "Connection string")
+5. Select **Mode: Transaction** (recommended for short-lived connections)
+6. Copy the **URI** (replace `[YOUR-PASSWORD]` with your actual database password)
+
+**If you see IPv6 connection errors:**
+```
+connect ECONNREFUSED 2600:1f18:...
+```
+This means you're using direct connection instead of pooler. Switch to the connection pooler URL.
 
 ### 2. DISCORD_WEBHOOK_URL (Required for Notifications)
 
