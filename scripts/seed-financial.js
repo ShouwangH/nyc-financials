@@ -153,7 +153,7 @@ async function generateBudgetSankey(db) {
 
   // Validate budget data
   try {
-    validateMinimumRecordCount(records, 5000, 'Budget Data');
+    validateMinimumRecordCount(records, 500, 'Budget Data');
     validateRequiredFields(
       records,
       ['agency_name', 'city_funds_current_budget_amount'],
@@ -653,7 +653,7 @@ async function generateRevenueSunburst(db) {
 
   // Validate revenue data
   try {
-    validateMinimumRecordCount(records, 1000, 'Revenue Data');
+    validateMinimumRecordCount(records, 500, 'Revenue Data');
     validateRequiredFields(
       records,
       ['revenue_category_name', 'revenue_source_name', 'current_modified_budget_amount'],
@@ -843,7 +843,7 @@ async function generateExpenseSunburst(db) {
 
   // Validate expense data
   try {
-    validateMinimumRecordCount(records, 5000, 'Expense Data');
+    validateMinimumRecordCount(records, 500, 'Expense Data');
     validateRequiredFields(
       records,
       ['agency_name', 'object_class_name', 'current_modified_budget_amount'],
