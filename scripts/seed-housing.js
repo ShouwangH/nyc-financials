@@ -597,11 +597,13 @@ async function main() {
 
       // Note: building_completion_date is not consistently present in Housing NY API
       // Records without it will be filtered out during processing (see line 247)
+      // Allow 20% failure rate since this is an overlay dataset and missing BBLs are safely skipped
       validateRequiredFields(
         housingNyRecords,
         ['bbl'],
         'Housing NY',
-        20
+        20,    // sample size
+        20     // max 20% failure rate acceptable
       );
     } catch (error) {
       logValidationError(error);
