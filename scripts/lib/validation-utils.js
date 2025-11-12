@@ -5,6 +5,8 @@
  * Ensures data quality before clearing existing database records
  */
 
+import { sql } from 'drizzle-orm';
+
 /**
  * Validation error class
  */
@@ -370,9 +372,8 @@ export async function detectDataChanges(db, tableName, newRecords, options = {})
 
   try {
     // Get current record count from database
-    const countQuery = `SELECT COUNT(*) as count FROM ${tableName}`;
-    const result = await db.execute(countQuery);
-    const currentCount = parseInt(result.rows[0]?.count || 0, 10);
+    const result = await db.execute(sql.raw(`SELECT COUNT(*) as count FROM ${tableName}`));
+    const currentCount = parseInt(result.rows[0]?.count || result[0]?.count || 0, 10);
 
     const newCount = newRecords.length;
 
@@ -403,10 +404,9 @@ export async function detectDataChanges(db, tableName, newRecords, options = {})
     // If counts match and hashData is enabled, compare data hash
     if (hashData) {
       // Get a sample of existing records for hash comparison
-      const sampleQuery = `SELECT * FROM ${tableName} ORDER BY id LIMIT 1000`;
-      const existingRecords = await db.execute(sampleQuery);
+      const existingRecords = await db.execute(sql.raw(`SELECT * FROM ${tableName} ORDER BY id LIMIT 1000`));
 
-      const existingHash = calculateDataHash(existingRecords.rows || []);
+      const existingHash = calculateDataHash(existingRecords.rows || existingRecords || []);
       const newHash = calculateDataHash(newRecords.slice(0, 1000)); // Compare same sample size
 
       if (existingHash !== newHash) {
@@ -462,13 +462,11 @@ export async function checkNeedsUpdate(db, tableName, maxAgeHours = 168) {
   console.log(`[Update Check] Checking last update time for ${tableName}...`);
 
   try {
-    const query = `
+    const result = await db.execute(sql.raw(`
       SELECT MAX(last_synced_at) as last_synced
       FROM ${tableName}
-    `;
-
-    const result = await db.execute(query);
-    const lastSynced = result.rows[0]?.last_synced;
+    `));
+    const lastSynced = result.rows[0]?.last_synced || result[0]?.last_synced;
 
     if (!lastSynced) {
       console.log(`[Update Check] ✓ No previous sync found - update required\n`);
