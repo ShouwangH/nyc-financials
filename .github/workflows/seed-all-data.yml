@@ -43,14 +43,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: '20'
-          cache: 'npm'
+          bun-version: latest
 
       - name: Install dependencies
-        run: npm install
+        run: bun install
 
       - name: Run seed scripts with retry logic
         id: seed
@@ -66,21 +65,21 @@ jobs:
 
               if [ "${{ inputs.run_housing }}" = "true" ]; then
                 echo "▶️  Running housing seed script..."
-                if ! npm run seed:housing; then
+                if ! bun run seed:housing; then
                   FAILED_SCRIPTS+=("seed:housing")
                 fi
               fi
 
               if [ "${{ inputs.run_capital }}" = "true" ]; then
                 echo "▶️  Running capital budget seed script..."
-                if ! npm run seed:capital; then
+                if ! bun run seed:capital; then
                   FAILED_SCRIPTS+=("seed:capital")
                 fi
               fi
 
               if [ "${{ inputs.run_financial }}" = "true" ]; then
                 echo "▶️  Running financial seed script..."
-                if ! npm run seed:financial; then
+                if ! bun run seed:financial; then
                   FAILED_SCRIPTS+=("seed:financial")
                 fi
               fi
@@ -91,7 +90,7 @@ jobs:
               fi
             else
               # Scheduled run - run all scripts
-              npm run seed:all
+              bun run seed:all
             fi
           on_retry_command: |
             echo "⚠️  Retry attempt ${{ steps.seed.outputs.attempts }} of 3"
@@ -191,7 +190,7 @@ jobs:
         with:
           name: seed-failure-logs-${{ github.run_id }}
           path: |
-            npm-debug.log*
             *.log
+            .bun-debug.log*
           retention-days: 30
           if-no-files-found: ignore
