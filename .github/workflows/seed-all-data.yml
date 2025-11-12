@@ -117,72 +117,35 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Workflow Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
 
-      - name: Send Discord notification on failure
+      - name: Send email notification on failure
         if: failure()
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: |
-          # Prepare failure notification
-          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
-          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "❌ NYC Data Seeding Failed - ${{ github.repository }}"
+          to: ${{ secrets.NOTIFICATION_EMAIL }}
+          from: ${{ secrets.SMTP_FROM_EMAIL }}
+          body: |
+            Data Seeding Workflow Failed
 
-          # Determine which script failed (if identifiable from logs)
-          FAILED_SCRIPT="Unknown - check logs"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TRIGGER="Manual (workflow_dispatch)"
-          else
-            TRIGGER="Scheduled (cron)"
-          fi
+            All retry attempts (3) have been exhausted.
 
-          # Create Discord embed payload
-          DISCORD_PAYLOAD=$(cat <<EOF
-          {
-            "embeds": [{
-              "title": "❌ Data Seeding Failed",
-              "description": "All retry attempts (3) have been exhausted.",
-              "color": 15158332,
-              "fields": [
-                {
-                  "name": "📅 Timestamp",
-                  "value": "${TIMESTAMP}",
-                  "inline": true
-                },
-                {
-                  "name": "🔄 Trigger",
-                  "value": "${TRIGGER}",
-                  "inline": true
-                },
-                {
-                  "name": "📝 Repository",
-                  "value": "${{ github.repository }}",
-                  "inline": false
-                },
-                {
-                  "name": "🔗 Workflow Run",
-                  "value": "[View Logs](${WORKFLOW_URL})",
-                  "inline": false
-                },
-                {
-                  "name": "⚠️ Action Required",
-                  "value": "Please check the workflow logs for detailed error messages and investigate the cause of the failure.",
-                  "inline": false
-                }
-              ],
-              "footer": {
-                "text": "NYC Open Data Seeding Workflow"
-              },
-              "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
-            }]
-          }
-          EOF
-          )
+            📅 Timestamp: ${{ github.event.head_commit.timestamp }}
+            🔄 Trigger: ${{ github.event_name }}
+            📝 Repository: ${{ github.repository }}
+            🌳 Branch: ${{ github.ref }}
 
-          # Send to Discord
-          curl -H "Content-Type: application/json" \
-               -d "${DISCORD_PAYLOAD}" \
-               "${DISCORD_WEBHOOK_URL}"
+            🔗 View Workflow Logs:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-          echo "Discord notification sent"
+            ⚠️ Action Required:
+            Please check the workflow logs for detailed error messages and investigate the cause of the failure.
+
+            ---
+            NYC Open Data Seeding Workflow
 
       - name: Upload logs as artifact on failure
         if: failure()
