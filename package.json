@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "seed:housing": "node scripts/seed-housing.js",
-    "seed:capital": "node scripts/seed-capital-budget.js",
-    "seed:financial": "node scripts/seed-financial.js",
-    "seed:all": "node scripts/seed-housing.js && node scripts/seed-capital-budget.js && node scripts/seed-financial.js"
+    "seed:housing": "bun scripts/seed-housing.js",
+    "seed:capital": "bun scripts/seed-capital-budget.js",
+    "seed:financial": "bun scripts/seed-financial.js",
+    "seed:all": "bun scripts/seed-housing.js && bun scripts/seed-capital-budget.js && bun scripts/seed-financial.js"
   },
   "dependencies": {
     "drizzle-orm": "^0.29.0",
