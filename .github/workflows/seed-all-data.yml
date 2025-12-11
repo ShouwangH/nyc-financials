@@ -51,6 +51,9 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Push schema changes to database
+        run: bunx drizzle-kit push --force
+
       - name: Run seed scripts with retry logic
         id: seed
         uses: nick-fields/retry@v3
