@@ -74,11 +74,17 @@ function simplifyLine(points, tolerance) {
   const [x1, y1] = points[0];
   const [x2, y2] = points[points.length - 1];
 
+  // Check if endpoints are identical (would cause divide by zero)
+  const lineLength = Math.sqrt((y2 - y1) ** 2 + (x2 - x1) ** 2);
+  if (lineLength === 0) {
+    // Endpoints are identical, return just the first point
+    return [points[0]];
+  }
+
   for (let i = 1; i < points.length - 1; i++) {
     const [x0, y0] = points[i];
     // Perpendicular distance from point to line
-    const dist = Math.abs((y2 - y1) * x0 - (x2 - x1) * y0 + x2 * y1 - y2 * x1) /
-                 Math.sqrt((y2 - y1) ** 2 + (x2 - x1) ** 2);
+    const dist = Math.abs((y2 - y1) * x0 - (x2 - x1) * y0 + x2 * y1 - y2 * x1) / lineLength;
     if (dist > maxDist) {
       maxDist = dist;
       maxIndex = i;
